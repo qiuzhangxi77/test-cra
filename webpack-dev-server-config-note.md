@@ -1,4 +1,4 @@
-## webpack dev server config
+## webpack dev server config (生产环境：Webpack Dev Server 本身就不用于生产，所以这个配置只存在于开发配置中)
 
 ```js
 "use strict";
@@ -638,3 +638,157 @@ location /static/ {
 - process.cwd()
   - 进程启动时的目录
   - 取决于你在哪里运行 npm start
+
+### webSocketURL（只在开发环境下配置）
+
+此选项允许指定 WebSocket 服务器的 URL（在代理开发服务器时很有用，因为客户端脚本不知道要连接到哪里）。
+你还可以指定一个带有以下属性的对象：
+
+```
+hostname：告诉连接到开发服务器的客户端要使用的主机名。
+pathname：告诉连接到开发服务器的客户端要使用的路径。
+password：告诉连接到开发服务器的客户端要使用的密码进行认证。
+port：告诉连接到开发服务器的客户端要使用的端口。
+protocol：告诉连接到开发服务器的客户端要使用的协议。
+username：告诉连接到开发服务器的客户端要使用的用户名进行认证。
+```
+
+默认走本机 dev serve 的地址
+
+#### 主要作用
+
+这个配置主要针对以下用处：
+
+1. 热模块替换（HMR）（配合`hot: true`配置）
+
+```js
+// Webpack Dev Server 通过 WebSocket 向客户端推送更新
+// 当代码变化时：
+// 1. Webpack 重新编译
+// 2. Dev Server 通过 WebSocket 通知客户端
+// 3. 客户端接收新模块并热替换
+devServer: {
+  hot: true, // 启用热更新
+  client: {
+    webSocketURL: 'ws://localhost:8080/ws' // 热更新通信地址
+  }
+}
+```
+
+2. 实时错误和警告（配合 overlay 配置）
+
+```
+// WebSocket 还用于传输：
+// - 编译错误信息
+// - 警告信息
+// - 编译状态更新
+```
+
+3. 开发服务器日志（配置 logging）
+
+```
+// 开发时的各种日志信息也通过 WebSocket 推送到浏览器控制台
+```
+
+#### 默认配置如何工作？
+
+```
+// Webpack Dev Server 的默认热更新流程：
+1. 页面加载时注入客户端脚本（webpack-dev-server/client）
+2. 客户端自动连接到：
+   - 当前页面的 hostname + port
+   - 加上 /ws 路径
+3. 建立 WebSocket 连接监听热更新
+4. 接收并应用模块更新
+```
+
+#### 什么时候配置 webSocketURL???
+
+关键问题："客户端看到的服务器地址" ≠ "服务器实际监听的地址"
+
+1. 场景 1：Docker/NPM Scripts 开发
+
+```
+// package.json
+{
+  "scripts": {
+    "dev": "webpack serve --host 0.0.0.0 --port 3000"
+  }
+}
+
+// 在 Docker 容器中运行：
+// 容器内：server 监听 0.0.0.0:3000
+// 浏览器在宿主机上：http://localhost:3000
+
+// 问题：浏览器尝试连接 ws://0.0.0.0:3000/ws ❌
+// 应该连接：ws://localhost:3000/ws ✅
+
+// 配置：
+devServer: {
+  host: '0.0.0.0',
+  port: 3000,
+  client: {
+    webSocketURL: {
+      hostname: 'localhost', // 告诉浏览器用这个地址
+      port: 3000
+    }
+  }
+}
+```
+
+2. 在代理开发服务器时很有用，因为客户端脚本不知道要连接到哪里（反向代理，企业常见）
+
+```
+// 开发环境通过公司代理访问
+// 实际访问：https://dev-frontend.company.com
+// 代理到：http://localhost:8080
+
+devServer: {
+  port: 8080,
+  client: {
+    webSocketURL: 'wss://dev-frontend.company.com/ws' // 告诉浏览器走代理
+  }
+}
+
+// 否则浏览器会尝试连接：ws://localhost:8080/ws
+// 但 localhost:8080 被公司防火墙阻止了
+```
+
+3. 场景 3：HTTPS 开发
+
+```
+devServer: {
+  https: true, // 服务器用 HTTPS
+  client: {
+    webSocketURL: {
+      protocol: 'wss' // 必须告诉客户端用 wss 而不是 ws
+      // 如果不配置，客户端可能错误地使用 ws://
+    }
+  }
+}
+```
+
+4. 场景 4：自定义 WebSocket 路径
+
+```
+// 一些公司有安全策略，需要特定路径
+devServer: {
+  client: {
+    webSocketURL: {
+      pathname: '/my-custom-ws-path' // 而不是默认的 /ws
+    }
+  }
+}
+```
+
+为什么不是"固定好的"？
+不同情况需要告诉客户端怎么连上开发环境的 websocket
+
+```
+// 开发者的视角：http://localhost:3000
+// 服务器的视角：0.0.0.0:3000
+// Docker 的视角：172.17.0.2:3000
+// 手机的视角：192.168.1.100:3000
+
+// 每个"视角"都需要不同的 WebSocket 地址！
+```
