@@ -487,3 +487,154 @@ def handle_dns_request(request):
         )
         return reply
 ```
+
+### static(directory, publicPath)
+
+cra 给出的解释：
+
+```js
+// By default WebpackDevServer serves physical files from current directory
+// in addition to all the virtual build products that it serves from memory.
+// This is confusing because those files won’t automatically be available in
+// production build folder unless we copy them. However, copying the whole
+// project directory is dangerous because we may expose sensitive files.
+// Instead, we establish a convention that only files in `public` directory
+// get served. Our build script will copy `public` into the `build` folder.
+// In `index.html`, you can get URL of `public` folder with %PUBLIC_URL%:
+// <link rel="icon" href="%PUBLIC_URL%/favicon.ico">
+// In JavaScript code, you can access it with `process.env.PUBLIC_URL`.
+// Note that we only recommend to use `public` folder as an escape hatch
+// for files like `favicon.ico`, `manifest.json`, and libraries that are
+// for some reason broken when imported through webpack. If you just want to
+// use an image, put it in `src` and `import` it from JavaScript instead.
+```
+
+总结：
+
+1. 默认情况下，WebpackDevServer 除了从内存中提供所有虚拟构建产物外，还会提供当前目录中的物理文件。
+2. 这容易让人困惑，因为除非我们复制它们，否则这些文件不会自动出现在生产构建文件夹中。然而，复制整个项目目录很危险，因为这可能会暴露敏感文件。
+3. 因此，我们制定了一个约定，即只提供 `public` 目录中的文件。我们的构建脚本会将 `public` 目录复制到 `build` 文件夹中。
+4. 在 `index.html` 中，您可以使用 `%PUBLIC_URL%` 获取 `public` 文件夹的 URL：`<link rel="icon" href="%PUBLIC_URL%/favicon.ico">`
+5. 在 JavaScript 代码中，您可以使用 `process.env.PUBLIC_URL` 访问它。
+
+devServer.static 配置，用于配置静态文件服务
+
+```
+devServer: {
+  static: {
+    // 静态文件的实际存放目录
+    directory: path.join(__dirname, 'assets'),
+
+    // 访问这些静态文件的URL路径前缀
+    publicPath: '/serve-public-path-url',
+  },
+}
+
+```
+
+假设你的开发服务器运行在 http://localhost:8080：
+
+```
+访问 URL: http://localhost:8080/serve-public-path-url/logo.png
+对应文件: 项目根目录/assets/logo.png
+
+访问 URL: http://localhost:8080/serve-public-path-url/css/style.css
+对应文件: 项目根目录/assets/css/style.css
+```
+
+#### 有 directory 不就是能访问了吗，为什么需要 publicPath?
+
+核心区别
+
+- directory：告诉 devServer 从哪个物理文件夹读取文件
+- publicPath：告诉 devServer 通过什么 URL 路径提供这些文件
+
+类比解释
+
+- directory = 书库的位置（在哪栋楼、哪个房间）
+- publicPath = 借书处的编号/入口（读者通过什么编号借书）
+
+情况 1：只有 directory
+
+```
+devServer: {
+  static: {
+    directory: path.join(__dirname, 'assets'),
+    // 没有 publicPath
+  },
+}
+
+物理文件：项目/assets/logo.png
+访问方式：http://localhost:8080/logo.png
+问题：直接挂在根路径，可能与你的路由冲突
+
+
+```
+
+情况 2：有 directory + publicPath
+
+```
+devServer: {
+  static: {
+    directory: path.join(__dirname, 'assets'),
+    publicPath: '/static',  // 添加了 publicPath
+  },
+}
+
+物理文件：项目/assets/logo.png
+
+访问方式：http://localhost:8080/static/logo.png
+
+优点：有命名空间，不容易冲突
+```
+
+为什么需要 publicPath？
+
+1. 避免路由冲突
+
+```
+如果你的应用有路由 /login、/dashboard，同时又有文件叫 login.jpg：
+
+
+// 没有 publicPath 的问题
+物理文件: assets/login.jpg
+访问 URL: http://localhost:8080/login.jpg  // ❌ 可能被路由拦截
+
+// 有 publicPath 的解决方案
+物理文件: assets/login.jpg
+访问 URL: http://localhost:8080/static/login.jpg  // ✅ 明确是静态资源
+
+```
+
+2. 模拟生产环境
+
+```
+生产环境通常有专门的静态资源路径：
+
+// 开发环境
+publicPath: '/static'
+
+// 生产环境（Nginx配置）
+location /static/ {
+    alias /var/www/assets/;
+}
+
+// 代码中统一使用
+<img src="/static/logo.png">  // 开发和生产环境一致
+```
+
+#### \_\_dirname, \_\_filename, process.cwd()
+
+- \_\_dirname
+
+  - 当前文件所在的目录
+  - `/home/user/projects/my-app`
+
+- \_\_filename
+
+  - 当前文件的完整路径
+  - `/home/user/projects/my-webpack.config.js`
+
+- process.cwd()
+  - 进程启动时的目录
+  - 取决于你在哪里运行 npm start
