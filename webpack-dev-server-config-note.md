@@ -636,8 +636,184 @@ location /static/ {
   - `/home/user/projects/my-webpack.config.js`
 
 - process.cwd()
+
   - 进程启动时的目录
   - 取决于你在哪里运行 npm start
+
+  #### webpack-dev-server 和 webpack 中的 publicPath 的区别
+
+dev server 中：
+
+1. Dev Server 的智能处理
+
+```
+// webpack.config.js
+module.exports = {
+  output: {
+    path: path.resolve(__dirname, 'dist'),
+    publicPath: '/test/'  // 注意这里！
+  },
+  devServer: {
+    static: {
+      directory: path.join(__dirname, 'dist'),
+    },
+    // Dev Server 会自动处理路径映射！
+  }
+};
+
+```
+
+当你在 dev server 中设置 publicPath: '/test/' 时：
+
+```
+// 实际上 dev server 做了这些事情：
+devServer: {
+  // 1. 仍然从 'dist/' 目录提供文件
+  static: {
+    directory: path.join(__dirname, 'dist'),
+  },
+
+  // 2. 但会自动将请求从 /test/* 映射到 /*
+  // 内部逻辑：
+  // 请求：GET /test/bundle.js
+  // 实际文件：dist/bundle.js
+  // Dev Server 自动映射！
+
+  // 3. 对于 HTML 文件，也会处理路径重写
+}
+```
+
+和生产环境构建时候的对比：
+
+生产构建：
+
+```
+// 配置
+output: {
+  path: 'dist',
+  publicPath: '/test/'
+}
+
+// 结果：
+// 文件位置：dist/bundle.js
+// HTML引用：<script src="/test/bundle.js"></script>
+// 必须手动移动文件或配置服务器！
+```
+
+dev server:
+
+```
+// 配置相同
+output: {
+  path: 'dist',
+  publicPath: '/test/'
+},
+devServer: {
+  static: 'dist',
+  // 魔法在这里发生！
+}
+
+// 实际运行：
+// 访问：http://localhost:8080/test/
+// Dev Server：哦，他在找 /test/bundle.js
+// Dev Server：但文件实际在 dist/bundle.js
+// Dev Server：我来做个映射！
+```
+
+为什么 dev server 可以做这个映射？：
+Dev Server 不使用实际的文件系统，而是内存中的虚拟文件系统（webpack-dev-middleware）
+
+生产环境不会这样做是因为它不是由 dev server 去管理，它取决于开发者将它部署到什么环境：
+
+场景 1：CDN 部署
+
+```
+典型 CDN 部署架构
+
+开发者本地              CDN 服务器               用户浏览器
+    │                      │                       │
+    │  1. 构建应用          │                       │
+    ├─────────────────────►│                       │
+    │  2. 上传 dist/ 到 CDN│                       │
+    │                      │                       │
+    │  3. 部署主站HTML     │                       │
+    │                      │                       │
+    │                      │   4. 用户访问主站     │
+    │                      │◄──────────────────────┤
+    │                      │                       │
+    │                      │   5. 从CDN加载资源    │
+    │                      │◄──────────────────────┤
+    │                      │                       │
+```
+
+webapck 配置：
+
+```
+// webpack.config.js
+const isProduction = process.env.NODE_ENV === 'production';
+
+module.exports = {
+  output: {
+    path: path.resolve(__dirname, 'dist'), // 本地构建目录
+    filename: 'js/[name].[contenthash:8].js',
+    chunkFilename: 'js/[name].[contenthash:8].chunk.js',
+    publicPath: isProduction
+      ? 'https://cdn.yourdomain.com/'  // 生产环境用CDN
+      : '/'                             // 开发环境用本地
+  },
+
+  module: {
+    rules: [
+      {
+        test: /\.(png|jpe?g|gif|svg)$/,
+        use: [
+          {
+            loader: 'url-loader',
+            options: {
+              limit: 8192,
+              name: 'images/[name].[hash:8].[ext]',
+              // publicPath 会覆盖这里的路径！
+              publicPath: isProduction
+                ? 'https://cdn.yourdomain.com/images/'
+                : '/images/'
+            }
+          }
+        ]
+      }
+    ]
+  }
+};
+```
+
+构建结果对比
+
+开发环境构建 (publicPath: '/'):
+
+```
+<!-- index.html -->
+<script src="/js/main.abc123.js"></script>
+<img src="/images/logo.def456.png">
+<!-- 从本地服务器加载 -->
+```
+
+生产环境构建 (publicPath: 'https://cdn.yourdomain.com/'):
+
+```
+<!-- index.html -->
+<script src="https://cdn.yourdomain.com/js/main.abc123.js"></script>
+<img src="https://cdn.yourdomain.com/images/logo.def456.png">
+<!-- 从CDN加载 -->
+```
+
+场景 2：子路径部署
+
+```
+
+publicPath: '/app/'
+// 文件实际在：dist/
+// 但引用：/app/bundle.js
+// 需要将 dist/ 复制到服务器的 /app/ 目录
+```
 
 ### webSocketURL（只在开发环境下配置）
 
