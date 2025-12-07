@@ -968,3 +968,75 @@ devServer: {
 
 // 每个"视角"都需要不同的 WebSocket 地址！
 ```
+
+### webpack-dev-middleware
+
+https://github.com/webpack/webpack-dev-middleware
+webpack-dev-middleware 是一个 Webpack 开发中间件，主要作用是在开发环境中将 Webpack 编译的结果提供给服务器使用。下面是它的核心作用和特点：
+
+主要作用:
+
+1. 内存编译
+
+   - 将编译后的文件存储在内存中，而不是写入磁盘
+
+   - 大幅提升开发时的构建速度（特别是对于大量文件）
+
+   - 减少磁盘 I/O 操作
+
+2. 实时编译
+
+   - 监视文件变化，自动重新编译
+
+   - 保持内存中的文件始终是最新版本
+
+   - 支持热模块替换（HMR）的底层支持
+
+3. 与开发服务器集成
+
+   - 通常与 webpack-dev-server 或 Express/Koa 等 Node.js 服务器配合使用
+
+   - 作为中间件处理资源请求
+
+典型使用场景:
+
+```
+// 配合 Express 使用
+const express = require('express');
+const webpack = require('webpack');
+const webpackMiddleware = require('webpack-dev-middleware');
+const config = require('./webpack.config.js');
+
+const app = express();
+const compiler = webpack(config);
+
+app.use(webpackMiddleware(compiler, {
+  publicPath: config.output.publicPath,
+  stats: 'minimal'
+}));
+
+app.listen(3000);
+```
+
+与 webpack-dev-server 的关系
+
+- webpack-dev-server：一个完整的开发服务器，内部使用了 webpack-dev-middleware
+
+- webpack-dev-middleware：更底层的中间件，可以集成到自定义服务器中
+
+#### `webpack-dev-middleware.publicPath` , `static.publicPath` , `output.publicPath`
+
+- `webpack-dev-middleware.publicPath`
+
+  - 属于 webpack dev server 的配置，定义
+  - 定义了开发服务器关于编译后的内容的路径映射，与 `static.publicPath`一样，配置为相同的值
+
+- `webpack-dev-middleware.publicPath`
+
+  - 属于 webpack dev server 的配置，定义
+  - 定义了开发服务器关于编译后的内容的路径映射，与 `webpack-dev-middleware.publicPath` 一样，配置为相同的值
+
+- `output.publicPath`
+  - 属于生产构建 webpack config 的配置
+  - The publicPath configuration option can be quite useful in a variety of scenarios. It allows you to specify the base path for all the assets within your application
+  - 允许您为应用程序中的所有资源指定基本路径（物理磁盘位置）
