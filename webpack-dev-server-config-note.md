@@ -130,6 +130,20 @@ module.exports = function (proxy, allowedHost) {
 };
 ```
 
+### \_\_dirname, \_\_filename, process.cwd()
+
+- \_\_dirname
+  - 当前文件所在的目录
+  - `/home/user/projects/my-app`
+
+- \_\_filename
+  - 当前文件的完整路径
+  - `/home/user/projects/my-webpack.config.js`
+
+- process.cwd()
+  - 进程启动时的目录
+  - 取决于你在哪里运行 npm start
+
 ### allowedHosts - 主机安全检查
 
 作用：
@@ -147,11 +161,9 @@ module.exports = function (proxy, allowedHost) {
 ##### 攻击原理
 
 1. 同源策略的限制
-
    - 浏览器只允许网页访问相同协议、域名、端口的资源。
 
 2. DNS 的工作方式
-
    - 域名解析为 IP 地址
    - DNS 响应有 TTL（生存时间）
    - 浏览器缓存 DNS 结果
@@ -358,7 +370,6 @@ fetch('http://evil-attacker.com/')  // 实际是 192.168.1.1
 为什么这个攻击很隐蔽？
 
 1. 用户完全不知情
-
    - 只是访问了一个普通网站
 
    - 没有下载任何软件
@@ -366,7 +377,6 @@ fetch('http://evil-attacker.com/')  // 实际是 192.168.1.1
    -没有输入任何密码
 
 2. 利用了浏览器正常功能
-
    - DNS 解析是正常的
 
    - 同源策略是正常工作的
@@ -494,333 +504,6 @@ def handle_dns_request(request):
                ttl=1)  # TTL=1秒！
         )
         return reply
-```
-
-### static(directory, publicPath)
-
-cra 给出的解释：
-
-```js
-// By default WebpackDevServer serves physical files from current directory
-// in addition to all the virtual build products that it serves from memory.
-// This is confusing because those files won’t automatically be available in
-// production build folder unless we copy them. However, copying the whole
-// project directory is dangerous because we may expose sensitive files.
-// Instead, we establish a convention that only files in `public` directory
-// get served. Our build script will copy `public` into the `build` folder.
-// In `index.html`, you can get URL of `public` folder with %PUBLIC_URL%:
-// <link rel="icon" href="%PUBLIC_URL%/favicon.ico">
-// In JavaScript code, you can access it with `process.env.PUBLIC_URL`.
-// Note that we only recommend to use `public` folder as an escape hatch
-// for files like `favicon.ico`, `manifest.json`, and libraries that are
-// for some reason broken when imported through webpack. If you just want to
-// use an image, put it in `src` and `import` it from JavaScript instead.
-```
-
-总结：
-
-1. 默认情况下，WebpackDevServer 除了从内存中提供所有虚拟构建产物外，还会提供当前目录中的物理文件。
-2. 这容易让人困惑，因为除非我们复制它们，否则这些文件不会自动出现在生产构建文件夹中。然而，复制整个项目目录很危险，因为这可能会暴露敏感文件。
-3. 因此，我们制定了一个约定，即只提供 `public` 目录中的文件。我们的构建脚本会将 `public` 目录复制到 `build` 文件夹中。
-4. 在 `index.html` 中，您可以使用 `%PUBLIC_URL%` 获取 `public` 文件夹的 URL：`<link rel="icon" href="%PUBLIC_URL%/favicon.ico">`
-5. 在 JavaScript 代码中，您可以使用 `process.env.PUBLIC_URL` 访问它。
-
-devServer.static 配置，用于配置静态文件服务
-
-```
-devServer: {
-  static: {
-    // 静态文件的实际存放目录
-    directory: path.join(__dirname, 'assets'),
-
-    // 访问这些静态文件的URL路径前缀
-    publicPath: '/serve-public-path-url',
-  },
-}
-
-```
-
-假设你的开发服务器运行在 http://localhost:8080：
-
-```
-访问 URL: http://localhost:8080/serve-public-path-url/logo.png
-对应文件: 项目根目录/assets/logo.png
-
-访问 URL: http://localhost:8080/serve-public-path-url/css/style.css
-对应文件: 项目根目录/assets/css/style.css
-```
-
-#### 有 directory 不就是能访问了吗，为什么需要 publicPath?
-
-核心区别
-
-- directory：告诉 devServer 从哪个物理文件夹读取文件
-- publicPath：告诉 devServer 通过什么 URL 路径提供这些文件
-
-类比解释
-
-- directory = 书库的位置（在哪栋楼、哪个房间）
-- publicPath = 借书处的编号/入口（读者通过什么编号借书）
-
-情况 1：只有 directory
-
-```
-devServer: {
-  static: {
-    directory: path.join(__dirname, 'assets'),
-    // 没有 publicPath
-  },
-}
-
-物理文件：项目/assets/logo.png
-访问方式：http://localhost:8080/logo.png
-问题：直接挂在根路径，可能与你的路由冲突
-
-
-```
-
-情况 2：有 directory + publicPath
-
-```
-devServer: {
-  static: {
-    directory: path.join(__dirname, 'assets'),
-    publicPath: '/static',  // 添加了 publicPath
-  },
-}
-
-物理文件：项目/assets/logo.png
-
-访问方式：http://localhost:8080/static/logo.png
-
-优点：有命名空间，不容易冲突
-```
-
-为什么需要 publicPath？
-
-1. 避免路由冲突
-
-```
-如果你的应用有路由 /login、/dashboard，同时又有文件叫 login.jpg：
-
-
-// 没有 publicPath 的问题
-物理文件: assets/login.jpg
-访问 URL: http://localhost:8080/login.jpg  // ❌ 可能被路由拦截
-
-// 有 publicPath 的解决方案
-物理文件: assets/login.jpg
-访问 URL: http://localhost:8080/static/login.jpg  // ✅ 明确是静态资源
-
-```
-
-2. 模拟生产环境
-
-```
-生产环境通常有专门的静态资源路径：
-
-// 开发环境
-publicPath: '/static'
-
-// 生产环境（Nginx配置）
-location /static/ {
-    alias /var/www/assets/;
-}
-
-// 代码中统一使用
-<img src="/static/logo.png">  // 开发和生产环境一致
-```
-
-#### \_\_dirname, \_\_filename, process.cwd()
-
-- \_\_dirname
-
-  - 当前文件所在的目录
-  - `/home/user/projects/my-app`
-
-- \_\_filename
-
-  - 当前文件的完整路径
-  - `/home/user/projects/my-webpack.config.js`
-
-- process.cwd()
-
-  - 进程启动时的目录
-  - 取决于你在哪里运行 npm start
-
-  #### webpack-dev-server 和 webpack 中的 publicPath 的区别
-
-dev server 中：
-
-1. Dev Server 的智能处理
-
-```
-// webpack.config.js
-module.exports = {
-  output: {
-    path: path.resolve(__dirname, 'dist'),
-    publicPath: '/test/'  // 注意这里！
-  },
-  devServer: {
-    static: {
-      directory: path.join(__dirname, 'dist'),
-    },
-    // Dev Server 会自动处理路径映射！
-  }
-};
-
-```
-
-当你在 dev server 中设置 publicPath: '/test/' 时：
-
-```
-// 实际上 dev server 做了这些事情：
-devServer: {
-  // 1. 仍然从 'dist/' 目录提供文件
-  static: {
-    directory: path.join(__dirname, 'dist'),
-  },
-
-  // 2. 但会自动将请求从 /test/* 映射到 /*
-  // 内部逻辑：
-  // 请求：GET /test/bundle.js
-  // 实际文件：dist/bundle.js
-  // Dev Server 自动映射！
-
-  // 3. 对于 HTML 文件，也会处理路径重写
-}
-```
-
-和生产环境构建时候的对比：
-
-生产构建：
-
-```
-// 配置
-output: {
-  path: 'dist',
-  publicPath: '/test/'
-}
-
-// 结果：
-// 文件位置：dist/bundle.js
-// HTML引用：<script src="/test/bundle.js"></script>
-// 必须手动移动文件或配置服务器！
-```
-
-dev server:
-
-```
-// 配置相同
-output: {
-  path: 'dist',
-  publicPath: '/test/'
-},
-devServer: {
-  static: 'dist',
-  // 魔法在这里发生！
-}
-
-// 实际运行：
-// 访问：http://localhost:8080/test/
-// Dev Server：哦，他在找 /test/bundle.js
-// Dev Server：但文件实际在 dist/bundle.js
-// Dev Server：我来做个映射！
-```
-
-为什么 dev server 可以做这个映射？：
-Dev Server 不使用实际的文件系统，而是内存中的虚拟文件系统（webpack-dev-middleware）
-
-生产环境不会这样做是因为它不是由 dev server 去管理，它取决于开发者将它部署到什么环境：
-
-场景 1：CDN 部署
-
-```
-典型 CDN 部署架构
-
-开发者本地              CDN 服务器               用户浏览器
-    │                      │                       │
-    │  1. 构建应用          │                       │
-    ├─────────────────────►│                       │
-    │  2. 上传 dist/ 到 CDN│                       │
-    │                      │                       │
-    │  3. 部署主站HTML     │                       │
-    │                      │                       │
-    │                      │   4. 用户访问主站     │
-    │                      │◄──────────────────────┤
-    │                      │                       │
-    │                      │   5. 从CDN加载资源    │
-    │                      │◄──────────────────────┤
-    │                      │                       │
-```
-
-webapck 配置：
-
-```
-// webpack.config.js
-const isProduction = process.env.NODE_ENV === 'production';
-
-module.exports = {
-  output: {
-    path: path.resolve(__dirname, 'dist'), // 本地构建目录
-    filename: 'js/[name].[contenthash:8].js',
-    chunkFilename: 'js/[name].[contenthash:8].chunk.js',
-    publicPath: isProduction
-      ? 'https://cdn.yourdomain.com/'  // 生产环境用CDN
-      : '/'                             // 开发环境用本地
-  },
-
-  module: {
-    rules: [
-      {
-        test: /\.(png|jpe?g|gif|svg)$/,
-        use: [
-          {
-            loader: 'url-loader',
-            options: {
-              limit: 8192,
-              name: 'images/[name].[hash:8].[ext]',
-              // publicPath 会覆盖这里的路径！
-              publicPath: isProduction
-                ? 'https://cdn.yourdomain.com/images/'
-                : '/images/'
-            }
-          }
-        ]
-      }
-    ]
-  }
-};
-```
-
-构建结果对比
-
-开发环境构建 (publicPath: '/'):
-
-```
-<!-- index.html -->
-<script src="/js/main.abc123.js"></script>
-<img src="/images/logo.def456.png">
-<!-- 从本地服务器加载 -->
-```
-
-生产环境构建 (publicPath: 'https://cdn.yourdomain.com/'):
-
-```
-<!-- index.html -->
-<script src="https://cdn.yourdomain.com/js/main.abc123.js"></script>
-<img src="https://cdn.yourdomain.com/images/logo.def456.png">
-<!-- 从CDN加载 -->
-```
-
-场景 2：子路径部署
-
-```
-
-publicPath: '/app/'
-// 文件实际在：dist/
-// 但引用：/app/bundle.js
-// 需要将 dist/ 复制到服务器的 /app/ 目录
 ```
 
 ### webSocketURL（只在开发环境下配置）
@@ -985,7 +668,6 @@ webpack-dev-middleware 是一个 Webpack 开发中间件，主要作用是在开
 主要作用:
 
 1. 内存编译
-
    - 将编译后的文件存储在内存中，而不是写入磁盘
 
    - 大幅提升开发时的构建速度（特别是对于大量文件）
@@ -993,7 +675,6 @@ webpack-dev-middleware 是一个 Webpack 开发中间件，主要作用是在开
    - 减少磁盘 I/O 操作
 
 2. 实时编译
-
    - 监视文件变化，自动重新编译
 
    - 保持内存中的文件始终是最新版本
@@ -1001,7 +682,6 @@ webpack-dev-middleware 是一个 Webpack 开发中间件，主要作用是在开
    - 支持热模块替换（HMR）的底层支持
 
 3. 与开发服务器集成
-
    - 通常与 webpack-dev-server 或 Express/Koa 等 Node.js 服务器配合使用
 
    - 作为中间件处理资源请求
@@ -1032,19 +712,503 @@ app.listen(3000);
 
 - webpack-dev-middleware：更底层的中间件，可以集成到自定义服务器中
 
-#### `webpack-dev-middleware.publicPath` , `static.publicPath` , `output.publicPath`
-
 - `webpack-dev-middleware.publicPath`
-
-  - 属于 webpack dev server 的配置，定义
-  - 定义了开发服务器关于编译后的内容的路径映射，与 `static.publicPath`一样，配置为相同的值
-
-- `webpack-dev-middleware.publicPath`
-
   - 属于 webpack dev server 的配置，定义
   - 定义了开发服务器关于编译后的内容的路径映射，与 `webpack-dev-middleware.publicPath` 一样，配置为相同的值
 
+### `static.publicPath` , `output.publicPath`
+
+- `webpack-dev-middleware.publicPath`
+  - 属于 webpack dev server 的配置，定义
+  - 定义了开发服务器关于编译后的内容的路径映射，与 `static.publicPath`一样，配置为相同的值
+
 - `output.publicPath`
-  - 属于生产构建 webpack config 的配置
+  - 属于打包构建 webpack config 的配置
   - The publicPath configuration option can be quite useful in a variety of scenarios. It allows you to specify the base path for all the assets within your application
   - 允许您为应用程序中的所有资源指定基本路径（物理磁盘位置）
+
+cra 给出的解释：
+
+```js
+// By default WebpackDevServer serves physical files from current directory
+// in addition to all the virtual build products that it serves from memory.
+// This is confusing because those files won’t automatically be available in
+// production build folder unless we copy them. However, copying the whole
+// project directory is dangerous because we may expose sensitive files.
+// Instead, we establish a convention that only files in `public` directory
+// get served. Our build script will copy `public` into the `build` folder.
+// In `index.html`, you can get URL of `public` folder with %PUBLIC_URL%:
+// <link rel="icon" href="%PUBLIC_URL%/favicon.ico">
+// In JavaScript code, you can access it with `process.env.PUBLIC_URL`.
+// Note that we only recommend to use `public` folder as an escape hatch
+// for files like `favicon.ico`, `manifest.json`, and libraries that are
+// for some reason broken when imported through webpack. If you just want to
+// use an image, put it in `src` and `import` it from JavaScript instead.
+```
+
+先说总结：
+
+1. 默认情况下，WebpackDevServer 除了从内存中提供所有虚拟构建产物外，还会提供当前目录中的物理文件（引用的静态资源）。
+2. 这容易让人困惑，因为除非我们复制它们，否则这些文件不会自动出现在生产构建文件夹中。然而，复制整个项目目录很危险，因为这可能会暴露敏感文件。
+3. 因此，我们制定了一个约定，即只提供 `public` 目录中的文件。我们的构建脚本会将 `public` 目录复制到 `build` 文件夹中。
+4. 在 `index.html` 中，您可以使用 `%PUBLIC_URL%` 获取 `public` 文件夹的 URL：`<link rel="icon" href="%PUBLIC_URL%/favicon.ico">`
+5. 在 JavaScript 代码中，您可以使用 `process.env.PUBLIC_URL` 访问它。
+
+```
+提供静态文件服务：webpack-dev-server 默认从内存提供打包后的文件，但还需要为项目中的静态文件（如图片、字体、HTML 等）提供服务。
+指定静态资源目录：directory: paths.appPublic 告诉 dev-server 从哪个目录提供静态文件。通常是项目的 public 文件夹。
+访问路径映射：publicPath: [paths.publicUrlOrPath] 指定这些静态文件在开发服务器中的访问路径。
+```
+
+静态资源有两种：（这里说的是第一种）
+
+- public index html 直接加载的资源(例如浏览器tab使用的icon)
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta
+      name="description"
+      content="Web site created using create-react-app"
+    />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+    <!--
+      manifest.json provides metadata used when your web app is installed on a
+      user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
+    -->
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    <!--
+      Notice the use of %PUBLIC_URL% in the tags above.
+      It will be replaced with the URL of the `public` folder during the build.
+      Only files inside the `public` folder can be referenced from the HTML.
+
+      Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
+      work correctly both with client-side routing and a non-root public URL.
+      Learn how to configure a non-root public URL by running `npm run build`.
+    -->
+    <title>React App</title>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+    <!--
+      This HTML file is a template.
+      If you open it directly in the browser, you will see an empty page.
+
+      You can add webfonts, meta tags, or analytics to this file.
+      The build step will place the bundled scripts into the <body> tag.
+
+      To begin the development, run `npm start` or `yarn start`.
+      To create a production bundle, use `npm run build` or `yarn build`.
+    -->
+  </body>
+</html>
+```
+
+- 经过打包处理后的静态资源（应用程序代码直接使用的静态资源，在这里对应src/logo.svg）
+  // src="/static/media/logo.6ce24c58023cc2f8fd88fe9d219db6c6.svg"（这个就是打包后的静态资源，这才和output的publicPath 和 path 有关系）
+
+```html
+<div id="root">
+  <div class="App">
+    <header class="App-header">
+      <img
+        class="App-logo"
+        alt="logo"
+        src="/static/media/logo.6ce24c58023cc2f8fd88fe9d219db6c6.svg"
+      />
+      <p>Edit <code>src/App.js</code> and save to reload.</p>
+      <a
+        class="App-link"
+        href="https://reactjs.org"
+        target="_blank"
+        rel="noopener noreferrer"
+        >Learn React</a
+      >
+    </header>
+  </div>
+</div>
+```
+
+devServer.static 配置，用于配置静态文件服务
+
+```
+devServer: {
+  static: {
+    // 静态文件的实际存放目录
+    directory: path.join(__dirname, 'assets'),
+
+    // 访问这些静态文件的URL路径前缀
+    publicPath: '/serve-public-path-url',
+  },
+}
+
+```
+
+假设你的开发服务器运行在 http://localhost:8080：
+
+```
+访问 URL: http://localhost:8080/serve-public-path-url/logo.png
+对应文件: 项目根目录/assets/logo.png
+
+访问 URL: http://localhost:8080/serve-public-path-url/css/style.css
+对应文件: 项目根目录/assets/css/style.css
+```
+
+#### 有 directory 不就是能访问了吗，为什么需要 publicPath?
+
+核心区别
+
+- directory：告诉 devServer 从哪个物理文件夹读取文件
+- publicPath：告诉 devServer 通过什么 URL 路径提供这些文件
+
+类比解释
+
+- directory = 书库的位置（在哪栋楼、哪个房间）
+- publicPath = 借书处的编号/入口（读者通过什么编号借书）
+
+情况 1：只有 directory
+
+```
+devServer: {
+  static: {
+    directory: path.join(__dirname, 'assets'),
+    // 没有 publicPath
+  },
+}
+
+物理文件：项目/assets/logo.png
+访问方式：http://localhost:8080/logo.png
+问题：直接挂在根路径，可能与你的路由冲突
+
+
+```
+
+情况 2：有 directory + publicPath
+
+```
+devServer: {
+  static: {
+    directory: path.join(__dirname, 'assets'),
+    publicPath: '/static',  // 添加了 publicPath
+  },
+}
+
+物理文件：项目/assets/logo.png
+
+访问方式：http://localhost:8080/static/logo.png
+
+优点：有命名空间，不容易冲突
+// 没有 publicPath 的问题
+物理文件: assets/login.jpg
+访问 URL: http://localhost:8080/login.jpg // ❌ 可能被路由拦截
+
+// 有 publicPath 的解决方案
+物理文件: assets/login.jpg
+访问 URL: http://localhost:8080/static/login.jpg // ✅ 明确是静态资源
+```
+
+为什么 dev server 可以做这个映射？：
+Dev Server 不使用实际的文件系统，而是内存中的虚拟文件系统（webpack-dev-middleware）
+
+生产环境不会这样做是因为它不是由 dev server 去管理，它取决于开发者将它部署到什么环境：
+
+场景 1：CDN 部署
+
+```
+
+典型 CDN 部署架构
+
+开发者本地 CDN 服务器 用户浏览器
+│ │ │
+│ 1. 构建应用 │ │
+├─────────────────────►│ │
+│ 2. 上传 dist/ 到 CDN│ │
+│ │ │
+│ 3. 部署主站HTML │ │
+│ │ │
+│ │ 4. 用户访问主站 │
+│ │◄──────────────────────┤
+│ │ │
+│ │ 5. 从CDN加载资源 │
+│ │◄──────────────────────┤
+│ │ │
+
+```
+
+webapck 配置：
+
+```js
+
+// webpack.config.js
+const isProduction = process.env.NODE_ENV === 'production';
+
+module.exports = {
+output: {
+path: path.resolve(\_\_dirname, 'dist'), // 本地构建目录
+filename: 'js/[name].[contenthash:8].js',
+chunkFilename: 'js/[name].[contenthash:8].chunk.js',
+publicPath: isProduction
+? 'https://cdn.yourdomain.com/' // 生产环境用CDN
+: '/' // 开发环境用本地
+},
+
+module: {
+rules: [
+{
+test: /\.(png|jpe?g|gif|svg)$/,
+use: [
+{
+loader: 'url-loader',
+options: {
+limit: 8192,
+name: 'images/[name].[hash:8].[ext]',
+// publicPath 会覆盖这里的路径！
+publicPath: isProduction
+? 'https://cdn.yourdomain.com/images/'
+: '/images/'
+}
+}
+]
+}
+]
+}
+};
+
+```
+
+构建结果对比
+
+开发环境构建 (publicPath: '/'):
+
+```
+
+<!-- index.html -->
+<script src="/js/main.abc123.js"></script>
+<img src="/images/logo.def456.png">
+<!-- 从本地服务器加载 -->
+```
+
+生产环境构建 (publicPath: 'https://cdn.yourdomain.com/'):
+
+```
+<!-- index.html -->
+<script src="https://cdn.yourdomain.com/js/main.abc123.js"></script>
+<img src="https://cdn.yourdomain.com/images/logo.def456.png">
+<!-- 从CDN加载 -->
+```
+
+#### 配置publicPath的 getPublicUrlOrPath 源码
+
+```js
+/**
+ * Returns a URL or a path with slash at the end
+ * In production can be URL, abolute path, relative path
+ * In development always will be an absolute path
+ * In development can use `path` module functions for operations
+ *
+ * @param {boolean} isEnvDevelopment
+ * @param {(string|undefined)} homepage a valid url or pathname
+ * @param {(string|undefined)} envPublicUrl a valid url or pathname
+ * @returns {string}
+ */
+function getPublicUrlOrPath(isEnvDevelopment, homepage, envPublicUrl) {
+  const stubDomain = "https://create-react-app.dev";
+
+  if (envPublicUrl) {
+    // ensure last slash exists
+    envPublicUrl = envPublicUrl.endsWith("/")
+      ? envPublicUrl
+      : envPublicUrl + "/";
+
+    // validate if `envPublicUrl` is a URL or path like
+    // `stubDomain` is ignored if `envPublicUrl` contains a domain
+    const validPublicUrl = new URL(envPublicUrl, stubDomain);
+
+    return isEnvDevelopment
+      ? envPublicUrl.startsWith(".")
+        ? "/"
+        : validPublicUrl.pathname
+      : // Some apps do not use client-side routing with pushState.
+        // For these, "homepage" can be set to "." to enable relative asset paths.
+        envPublicUrl;
+  }
+
+  if (homepage) {
+    // strip last slash if exists
+    homepage = homepage.endsWith("/") ? homepage : homepage + "/";
+
+    // validate if `homepage` is a URL or path like and use just pathname
+    const validHomepagePathname = new URL(homepage, stubDomain).pathname;
+    return isEnvDevelopment
+      ? homepage.startsWith(".")
+        ? "/"
+        : validHomepagePathname
+      : // Some apps do not use client-side routing with pushState.
+        // For these, "homepage" can be set to "." to enable relative asset paths.
+        homepage.startsWith(".")
+        ? homepage
+        : validHomepagePathname;
+  }
+
+  return "/";
+}
+```
+
+#### 实例解释
+
+```js
+envPublicUrl = envPublicUrl.endsWith("/") ? envPublicUrl : envPublicUrl + "/";
+
+return isEnvDevelopment // 第一层条件：是否是开发环境
+  ? envPublicUrl.startsWith(".") // 开发环境分支：是否以 "." 开头
+    ? "/" // 以 "." 开头 → 返回 "/"
+    : validPublicUrl.pathname // 不以 "." 开头 → 返回路径部分
+  : envPublicUrl; // 生产环境 → 直接返回配置值
+```
+
+1. 开发环境逻辑 (isEnvDevelopment 为 true)
+
+```js
+envPublicUrl.startsWith(".") ? "/" : validPublicUrl.pathname;
+```
+
+    -  envPublicUrl.startsWith('.') ? '/'
+
+        - 条件：envPublicUrl 以点号开头（如 ./、../app）
+        - 返回：/
+        - 原因：开发环境使用 Webpack Dev Server，通常运行在 http://localhost:3000
+              - 相对路径（.）在开发服务器中应该解析为根路径
+              - 示例：PUBLIC_URL="./assets" 在开发时应该从 /assets 加载
+
+    - validPublicUrl.pathname
+        - 条件：envPublicUrl 不以点号开头
+        - 返回：validPublicUrl.pathname（URL 的路径部分）
+        - 示例：
+
+        ```js
+        // 假设 envPublicUrl = "/myapp"
+          const validPublicUrl = new URL("/myapp", "https://create-react-app.dev");
+          validPublicUrl.pathname; // 返回 "/myapp/"
+
+          // 假设 envPublicUrl = "https://example.com/app"
+          const validPublicUrl = new URL("https://example.com/app", stubDomain);
+          validPublicUrl.pathname; // 返回 "/app/"
+        ```
+
+实际使用示例
+示例 1：开发环境，相对路径
+
+```js
+isEnvDevelopment = true;
+envPublicUrl = "./";
+// 1. startsWith('.') 检查 → true
+// 返回: "/"
+
+output: {
+      // The build folder.
+      path: paths.appBuild,
+      // Add /* filename */ comments to generated require()s in the output.
+      pathinfo: isEnvDevelopment,
+      // There will be one main bundle, and one file per asynchronous chunk.
+      // In development, it does not produce real files.
+      filename: isEnvProduction
+        ? 'static/js/[name].[contenthash:8].js'
+        : isEnvDevelopment && 'static/js/bundle.js',
+      // There are also additional JS chunk files if you use code splitting.
+      chunkFilename: isEnvProduction
+        ? 'static/js/[name].[contenthash:8].chunk.js'
+        : isEnvDevelopment && 'static/js/[name].chunk.js',
+      assetModuleFilename: 'static/media/[name].[hash][ext]',
+      // webpack uses `publicPath` to determine where the app is being served from.
+      // It requires a trailing slash, or the file assets will get an incorrect path.
+      // We inferred the "public path" (such as / or /my-project) from homepage.
+      publicPath: paths.publicUrlOrPath,
+      // Point sourcemap entries to original disk location (format as URL on Windows)
+      devtoolModuleFilenameTemplate: isEnvProduction
+        ? info =>
+            path
+              .relative(paths.appSrc, info.absoluteResourcePath)
+              .replace(/\\/g, '/')
+        : isEnvDevelopment &&
+          (info => path.resolve(info.absoluteResourcePath).replace(/\\/g, '/')),
+    },
+```
+
+最终src里面引用的静态资源：
+
+```
+<img class="App-logo" alt="logo" src="/static/media/logo.6ce24c58023cc2f8fd88fe9d219db6c6.svg">
+
+即是
+http://localhost:3000/static/media/logo.6ce24c58023cc2f8fd88fe9d219db6c6.svg
+由内存提供
+```
+
+- 开发环境返回 "/" 或简单路径是基于 Webpack Dev Server 的工作原理和开发便利性考虑的。让我详细解释：
+  - Webpack Dev Server 默认运行在 http://localhost:3000，并且：
+  - 在内存中提供服务（不写入磁盘）
+  - 所有资源都从内存中提供
+  - 所有路径都相对于开发服务器的根路径
+
+示例 2：开发环境，绝对路径
+
+```js
+isEnvDevelopment = true;
+envPublicUrl = "/myapp/";
+// 1. startsWith('.') 检查 → false
+// 2. new URL("/myapp/", stubDomain).pathname → "/myapp/"
+// 返回: "/myapp/"
+```
+
+示例 3：生产环境，相对路径
+
+```js
+isEnvDevelopment = false;
+envPublicUrl = ".";
+// 1. startsWith('.') 检查 → true
+// 返回: "/"
+output: {
+      // The build folder.
+      path: paths.appBuild,
+      // Add /* filename */ comments to generated require()s in the output.
+      pathinfo: isEnvDevelopment,
+      // There will be one main bundle, and one file per asynchronous chunk.
+      // In development, it does not produce real files.
+      filename: isEnvProduction
+        ? 'static/js/[name].[contenthash:8].js'
+        : isEnvDevelopment && 'static/js/bundle.js',
+      // There are also additional JS chunk files if you use code splitting.
+      chunkFilename: isEnvProduction
+        ? 'static/js/[name].[contenthash:8].chunk.js'
+        : isEnvDevelopment && 'static/js/[name].chunk.js',
+      assetModuleFilename: 'static/media/[name].[hash][ext]',
+      // webpack uses `publicPath` to determine where the app is being served from.
+      // It requires a trailing slash, or the file assets will get an incorrect path.
+      // We inferred the "public path" (such as / or /my-project) from homepage.
+      publicPath: paths.publicUrlOrPath,
+      // Point sourcemap entries to original disk location (format as URL on Windows)
+      devtoolModuleFilenameTemplate: isEnvProduction
+        ? info =>
+            path
+              .relative(paths.appSrc, info.absoluteResourcePath)
+              .replace(/\\/g, '/')
+        : isEnvDevelopment &&
+          (info => path.resolve(info.absoluteResourcePath).replace(/\\/g, '/')),
+    },
+```
+
+最终src里面引用的静态资源：
+
+```
+<img class="App-logo" alt="logo" src="./static/media/logo.6ce24c58023cc2f8fd88fe9d219db6c6.svg">
+
+即是
+http://127.0.0.1:5500/build/static/media/logo.6ce24c58023cc2f8fd88fe9d219db6c6.svg
+由打包后的实际目录提供，结合path（打包目录）+ assetModuleFilename + publicPath
+```
