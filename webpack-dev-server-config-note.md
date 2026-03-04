@@ -718,7 +718,7 @@ app.listen(3000);
 
 ### `static.publicPath` , `output.publicPath`
 
-- `webpack-dev-middleware.publicPath`
+- `webpack-dev-middleware.publicPath` 和 `static.publicPath`
   - 属于 webpack dev server 的配置，定义
   - 定义了开发服务器关于编译后的内容的路径映射，与 `static.publicPath`一样，配置为相同的值
 
@@ -754,13 +754,24 @@ cra 给出的解释：
 4. 在 `index.html` 中，您可以使用 `%PUBLIC_URL%` 获取 `public` 文件夹的 URL：`<link rel="icon" href="%PUBLIC_URL%/favicon.ico">`
 5. 在 JavaScript 代码中，您可以使用 `process.env.PUBLIC_URL` 访问它。
 
+可以理解为：
+
+- dev server 的 publicPath，就是路径映射，告诉devserver模拟出一个路径，就是存放这些静态资源的，然后浏览器通过访问这个路径（注意，只是前缀，还要加上fileName之类的），devserver返回这些静态资源
+- 打包结果的publicPath，就是打包后，访问这些静态资源实际的路径（注意，只是前缀，还要加上fileName之类的）
+- 静态资源有两种
+  - 一种是public 目录上，这种通常在index.html直接拿取
+  - 一种是app项目的静态资源，应用代码用到的图片等等，一般不放在public下，放在src/某个路径下（也可以放在在public）
+    - 因为对于程序的静态资源，打包工具一般都会hash它，然后打包放在一个目录下（和output有关系），例如static/media，程序的访问该资源的路径就是对应这个路径
+    - 但如果你放在public里了，因为已经在一开始的时候被copy进打包目录了，然后webpack又处理一遍，放在一个别的目录下，static/media，而且程序的访问该资源的路径就是对应这个路径，所以原来在public那里的属于没有用到的资源（所以为什么区分是index.html直接用到的就放在public目录下，程序代码的静态资源就不放在public下）
+- 有点要注意点是：程序代码中的svg通常会有特殊的loader去处理，然后打包的时候把它作为内嵌元素去使用，不额外缓存这个文件
+
 ```
 提供静态文件服务：webpack-dev-server 默认从内存提供打包后的文件，但还需要为项目中的静态文件（如图片、字体、HTML 等）提供服务。
 指定静态资源目录：directory: paths.appPublic 告诉 dev-server 从哪个目录提供静态文件。通常是项目的 public 文件夹。
 访问路径映射：publicPath: [paths.publicUrlOrPath] 指定这些静态文件在开发服务器中的访问路径。
 ```
 
-静态资源有两种：（这里说的是第一种）
+另外静态资源有两种：
 
 - public index html 直接加载的资源(例如浏览器tab使用的icon)
 
@@ -1165,6 +1176,8 @@ envPublicUrl = "/myapp/";
 // 2. new URL("/myapp/", stubDomain).pathname → "/myapp/"
 // 返回: "/myapp/"
 ```
+
+`http://localhost:3000/myapp/favicon.ico` 返回
 
 示例 3：生产环境，相对路径
 
