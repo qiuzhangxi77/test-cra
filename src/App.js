@@ -1,5 +1,7 @@
 import logo from "./logo.svg";
 import "./App.css";
+import { AppContent } from "./App-Content";
+console.log("App Hello World");
 
 function App() {
   return (
@@ -18,6 +20,7 @@ function App() {
           Learn React
         </a>
       </header>
+      <AppContent />
     </div>
   );
 }
